@@ -82,23 +82,30 @@ export function SchedulerSidebar({
 
   return (
     <div className="min-h-0">
-      <div className={cn("flex h-full gap-3", collapsed ? "justify-end" : "flex-col")}>
+      <div
+        className={cn(
+          "h-full min-h-0",
+          collapsed ? "flex justify-end" : "grid grid-rows-[auto,minmax(0,1fr)] gap-2",
+        )}
+      >
         <Card
           className={cn(
-            "glass-panel border-border/70",
+            "glass-panel shrink-0 border-border/70",
             collapsed ? "h-full w-[72px] shrink-0" : "overflow-hidden",
           )}
         >
           <CardContent
             className={cn(
-              "p-2",
-              collapsed ? "flex h-full flex-col items-center gap-2" : "flex items-center gap-2 p-2",
+              "p-1.5",
+              collapsed
+                ? "flex h-full flex-col items-center gap-1.5"
+                : "flex min-h-[48px] items-center justify-center gap-1.5 p-1.5",
             )}
           >
             <Button
               size="sm"
               variant="outline"
-              className={cn("h-9 w-9 shrink-0 px-0", collapsed && "w-full")}
+              className={cn("h-8 w-8 shrink-0 px-0", collapsed && "w-full")}
               onClick={onToggleCollapsed}
               title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
             >
@@ -110,7 +117,7 @@ export function SchedulerSidebar({
                 key={view.id}
                 size="sm"
                 variant={view.id === activeView ? "default" : "ghost"}
-                className={cn("h-9 shrink-0 px-0", collapsed ? "w-full justify-center" : "w-9")}
+                className={cn("h-8 shrink-0 px-0", collapsed ? "w-full justify-center" : "w-8")}
                 onClick={() => setActiveView(view.id)}
                 title={view.label}
               >
@@ -120,14 +127,18 @@ export function SchedulerSidebar({
           </CardContent>
         </Card>
 
-        {collapsed ? null : activeView === "inspector" ? (
-          <InspectorPanel />
-        ) : (
-          <SidebarPlaceholder
-            title={currentView.label}
-            eyebrow={currentView.eyebrow}
-            Icon={currentView.Icon}
-          />
+        {collapsed ? null : (
+          <div className="min-h-0">
+            {activeView === "inspector" ? (
+              <InspectorPanel />
+            ) : (
+              <SidebarPlaceholder
+                title={currentView.label}
+                eyebrow={currentView.eyebrow}
+                Icon={currentView.Icon}
+              />
+            )}
+          </div>
         )}
       </div>
     </div>
