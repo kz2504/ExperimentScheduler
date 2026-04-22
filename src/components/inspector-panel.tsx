@@ -24,8 +24,8 @@ export function InspectorPanel() {
     : [];
 
   return (
-    <Card className="glass-panel min-h-0 overflow-hidden border-border/70">
-      <CardContent className="flex h-full flex-col gap-4 p-5">
+    <Card className="glass-panel h-full min-h-0 overflow-hidden border-border/70">
+      <CardContent className="flex h-full min-h-0 flex-col gap-4 p-5">
         <div className="flex items-start justify-between gap-3">
           <div>
             <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-muted-foreground">

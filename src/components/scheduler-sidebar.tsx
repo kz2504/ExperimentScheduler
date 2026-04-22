@@ -54,8 +54,8 @@ function SidebarPlaceholder({
   Icon: typeof SlidersHorizontal;
 }) {
   return (
-    <Card className="glass-panel min-h-0 overflow-hidden border-border/70">
-      <CardContent className="flex h-full min-h-[320px] flex-col gap-4 p-5">
+    <Card className="glass-panel h-full min-h-0 overflow-hidden border-border/70">
+      <CardContent className="flex h-full min-h-0 flex-col gap-4 p-5">
         <div>
           <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-muted-foreground">
             {eyebrow}
@@ -81,10 +81,10 @@ export function SchedulerSidebar({
   const currentView = SIDEBAR_VIEWS.find((view) => view.id === activeView) ?? SIDEBAR_VIEWS[0];
 
   return (
-    <div className="min-h-0">
+    <div className="thin-scrollbar min-h-0 overflow-y-auto pr-1">
       <div
         className={cn(
-          "h-full min-h-0",
+          "min-h-full",
           collapsed ? "flex justify-end" : "grid grid-rows-[auto,minmax(0,1fr)] gap-2",
         )}
       >
@@ -128,7 +128,7 @@ export function SchedulerSidebar({
         </Card>
 
         {collapsed ? null : (
-          <div className="min-h-0">
+          <div className="min-h-0 pb-1">
             {activeView === "inspector" ? (
               <InspectorPanel />
             ) : (
