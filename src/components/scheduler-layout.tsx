@@ -21,10 +21,10 @@ export function SchedulerLayout({
   return (
     <div
       className={cn(
-        "grid min-h-0 flex-1 gap-4",
+        "adaptive-layout grid min-h-0 flex-1 gap-4",
         isSidebarCollapsed
-          ? "lg:grid-cols-[minmax(0,1fr),88px]"
-          : "lg:grid-cols-[minmax(0,1fr),360px]",
+          ? "lg:grid-cols-[minmax(0,1fr),72px]"
+          : "lg:grid-cols-[minmax(0,1fr),320px] xl:grid-cols-[minmax(0,1fr),360px]",
       )}
     >
       <TimelineGrid

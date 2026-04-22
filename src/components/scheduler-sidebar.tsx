@@ -22,28 +22,24 @@ const SIDEBAR_VIEWS: Array<{
   id: SidebarView;
   label: string;
   eyebrow: string;
-  description: string;
   Icon: typeof SlidersHorizontal;
 }> = [
   {
     id: "inspector",
     label: "Block Inspector",
     eyebrow: "Inspector",
-    description: "Inspect and edit the currently selected command block.",
     Icon: SlidersHorizontal,
   },
   {
     id: "devices",
     label: "Device Overview",
     eyebrow: "Devices",
-    description: "Reserved for upcoming device inventory and channel summaries.",
     Icon: ListTree,
   },
   {
     id: "calibration",
     label: "Pump Calibration",
     eyebrow: "Calibration",
-    description: "Reserved for future syringe and peristaltic pump calibration tools.",
     Icon: FlaskConical,
   },
 ];
@@ -51,11 +47,11 @@ const SIDEBAR_VIEWS: Array<{
 function SidebarPlaceholder({
   title,
   eyebrow,
-  description,
+  Icon,
 }: {
   title: string;
   eyebrow: string;
-  description: string;
+  Icon: typeof SlidersHorizontal;
 }) {
   return (
     <Card className="glass-panel min-h-0 overflow-hidden border-border/70">
@@ -68,7 +64,9 @@ function SidebarPlaceholder({
         </div>
 
         <div className="flex flex-1 items-center justify-center rounded-3xl border border-dashed border-border/70 bg-slate-50/70 px-6 text-center">
-          <p className="max-w-xs text-sm text-muted-foreground">{description}</p>
+          <div className="rounded-3xl border border-border/60 bg-white/80 p-5 text-slate-400 shadow-sm">
+            <Icon className="h-10 w-10" />
+          </div>
         </div>
       </CardContent>
     </Card>
@@ -88,23 +86,23 @@ export function SchedulerSidebar({
         <Card
           className={cn(
             "glass-panel border-border/70",
-            collapsed ? "h-full w-[88px] shrink-0" : "overflow-hidden",
+            collapsed ? "h-full w-[72px] shrink-0" : "overflow-hidden",
           )}
         >
           <CardContent
             className={cn(
               "p-2",
-              collapsed ? "flex h-full flex-col items-center gap-2" : "flex flex-wrap gap-2 p-3",
+              collapsed ? "flex h-full flex-col items-center gap-2" : "flex items-center gap-2 p-2",
             )}
           >
             <Button
               size="sm"
               variant="outline"
-              className={cn(collapsed ? "w-full justify-center" : "shrink-0")}
+              className={cn("h-9 w-9 shrink-0 px-0", collapsed && "w-full")}
               onClick={onToggleCollapsed}
+              title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
             >
               {collapsed ? <ChevronLeft className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-              {collapsed ? null : "Collapse"}
             </Button>
 
             {SIDEBAR_VIEWS.map((view) => (
@@ -112,15 +110,11 @@ export function SchedulerSidebar({
                 key={view.id}
                 size="sm"
                 variant={view.id === activeView ? "default" : "ghost"}
-                className={cn(
-                  "min-w-0",
-                  collapsed ? "w-full justify-center px-0" : "flex-1 justify-start",
-                )}
+                className={cn("h-9 shrink-0 px-0", collapsed ? "w-full justify-center" : "w-9")}
                 onClick={() => setActiveView(view.id)}
                 title={view.label}
               >
                 <view.Icon className="h-4 w-4 shrink-0" />
-                {collapsed ? null : <span className="truncate">{view.label}</span>}
               </Button>
             ))}
           </CardContent>
@@ -132,7 +126,7 @@ export function SchedulerSidebar({
           <SidebarPlaceholder
             title={currentView.label}
             eyebrow={currentView.eyebrow}
-            description={currentView.description}
+            Icon={currentView.Icon}
           />
         )}
       </div>

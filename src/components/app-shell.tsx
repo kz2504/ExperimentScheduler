@@ -91,7 +91,7 @@ export function AppShell() {
   }, [deleteBlock, selectedBlockId]);
 
   return (
-    <div className="relative flex h-full flex-col overflow-hidden px-5 pb-5 pt-4 text-foreground">
+    <div className="adaptive-shell relative flex h-full flex-col overflow-hidden px-5 pb-5 pt-4 text-foreground">
       <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_14%_0%,rgba(34,211,238,0.16),transparent_24%),radial-gradient(circle_at_94%_2%,rgba(249,115,22,0.16),transparent_28%),linear-gradient(180deg,rgba(255,255,255,0),rgba(255,255,255,0.68))]" />
 
       <TopToolbar
