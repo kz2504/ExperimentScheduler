@@ -1,0 +1,135 @@
+import type { Block, DeviceType } from "@/types/scheduler";
+import { clamp } from "@/lib/utils";
+
+export const SECOND_MS = 1_000;
+export const MINUTE_MS = 60_000;
+export const RUNWAY_PADDING_MS = 15 * MINUTE_MS;
+export const DEFAULT_RUNWAY_DURATION_MS = 30 * MINUTE_MS;
+export const MIN_AUTO_SCHEDULE_DURATION_MS = DEFAULT_RUNWAY_DURATION_MS;
+export const MIN_MANUAL_SCHEDULE_DURATION_MS = MINUTE_MS;
+
+export const GRID_OPTIONS = [
+  { label: "0.5 sec", value: 500 },
+  { label: "1 sec", value: 1_000 },
+  { label: "5 sec", value: 5_000 },
+  { label: "10 sec", value: 10_000 },
+  { label: "30 sec", value: 30_000 },
+  { label: "1 min", value: 60_000 },
+];
+
+export const ZOOM_LEVELS = [240, 480, 900, 1_500, 2_100, 3_000, 4_200] as const;
+export const DEFAULT_ZOOM_PX_PER_MINUTE = 3_000;
+
+function trimTrailingZeros(value: string) {
+  return value.replace(/\.0+$/, "").replace(/(\.\d*[1-9])0+$/, "$1");
+}
+
+export function snapMs(value: number, gridSizeMs: number) {
+  return Math.round(value / gridSizeMs) * gridSizeMs;
+}
+
+export function pxToMs(px: number, zoomPxPerMinute: number) {
+  return (px / zoomPxPerMinute) * MINUTE_MS;
+}
+
+export function msToPx(ms: number, zoomPxPerMinute: number) {
+  return (ms / MINUTE_MS) * zoomPxPerMinute;
+}
+
+export function formatTimelineTime(ms: number) {
+  const normalizedMs = Math.max(0, Math.round(ms));
+  const totalSeconds = Math.floor(normalizedMs / SECOND_MS);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  const remainingMs = normalizedMs % SECOND_MS;
+
+  if (hours > 0) {
+    const baseLabel = `${hours}:${minutes.toString().padStart(2, "0")}:${seconds
+      .toString()
+      .padStart(2, "0")}`;
+    return remainingMs > 0 ? `${baseLabel}.${Math.floor(remainingMs / 100)}` : baseLabel;
+  }
+
+  const baseLabel = `${minutes}:${seconds.toString().padStart(2, "0")}`;
+  return remainingMs > 0 ? `${baseLabel}.${Math.floor(remainingMs / 100)}` : baseLabel;
+}
+
+export function formatDuration(ms: number) {
+  const normalizedMs = Math.max(0, Math.round(ms));
+
+  if (normalizedMs < MINUTE_MS) {
+    if (normalizedMs % SECOND_MS === 0) {
+      return `${normalizedMs / SECOND_MS}s`;
+    }
+
+    const fractionDigits = normalizedMs % 100 === 0 ? 1 : 2;
+    return `${trimTrailingZeros((normalizedMs / SECOND_MS).toFixed(fractionDigits))}s`;
+  }
+
+  const totalSeconds = Math.round(normalizedMs / SECOND_MS);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  if (hours > 0) {
+    return `${hours}h ${minutes}m`;
+  }
+
+  if (minutes > 0 && seconds > 0) {
+    return `${minutes}m ${seconds}s`;
+  }
+
+  if (minutes > 0) {
+    return `${minutes}m`;
+  }
+
+  return `${seconds}s`;
+}
+
+export function getBlockEnd(block: Block) {
+  return block.startMs + block.durationMs;
+}
+
+export function getRequiredScheduleDuration(blocks: Block[]) {
+  const maxEnd = blocks.reduce((max, block) => Math.max(max, getBlockEnd(block)), 0);
+  return maxEnd;
+}
+
+export function getScheduleDuration(blocks: Block[], requestedDurationMs?: number) {
+  const requiredDurationMs = getRequiredScheduleDuration(blocks);
+
+  if (requestedDurationMs === undefined) {
+    return Math.max(
+      requiredDurationMs + RUNWAY_PADDING_MS,
+      MIN_AUTO_SCHEDULE_DURATION_MS,
+    );
+  }
+
+  return Math.max(
+    requiredDurationMs,
+    requestedDurationMs,
+    MIN_MANUAL_SCHEDULE_DURATION_MS,
+  );
+}
+
+export function getLabelEvery(gridSizeMs: number, zoomPxPerMinute: number) {
+  const gridWidth = msToPx(gridSizeMs, zoomPxPerMinute);
+  return Math.max(1, Math.ceil(90 / Math.max(gridWidth, 1)));
+}
+
+export function sanitizeDuration(durationMs: number, gridSizeMs: number) {
+  return Math.max(gridSizeMs, snapMs(durationMs, gridSizeMs));
+}
+
+export function clampBlockStart(startMs: number, durationMs: number, totalDurationMs: number) {
+  return clamp(startMs, 0, Math.max(0, totalDurationMs - durationMs));
+}
+
+export function getDeviceTypeLabel(deviceType: DeviceType) {
+  return deviceType === "syringe" ? "Syringe pump" : "Peristaltic pump";
+}
+
+export function getFlowRateLabel(flowRate: number) {
+  return `${flowRate.toFixed(flowRate % 1 === 0 ? 0 : 1)} mL/min`;
+}

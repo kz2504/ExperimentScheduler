@@ -1,0 +1,105 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: light;
+    --background: 205 45% 98%;
+    --foreground: 218 34% 16%;
+    --muted: 206 34% 94%;
+    --muted-foreground: 215 17% 42%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 218 34% 16%;
+    --card: 0 0% 100%;
+    --card-foreground: 218 34% 16%;
+    --border: 213 30% 84%;
+    --input: 212 31% 82%;
+    --primary: 197 79% 43%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 204 37% 95%;
+    --secondary-foreground: 218 30% 20%;
+    --accent: 28 92% 56%;
+    --accent-foreground: 24 67% 20%;
+    --destructive: 0 72% 50%;
+    --destructive-foreground: 0 0% 100%;
+    --ring: 197 79% 43%;
+    --scheduler-panel: 0 0% 100%;
+    --scheduler-panel-strong: 206 44% 98%;
+    --scheduler-lane: 200 54% 97%;
+    --scheduler-lane-alt: 36 64% 97%;
+    --scheduler-syringe: 194 74% 45%;
+    --scheduler-syringe-soft: 189 76% 92%;
+    --scheduler-peristaltic: 28 88% 56%;
+    --scheduler-peristaltic-soft: 31 100% 93%;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  html,
+  body,
+  #root {
+    @apply h-full;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    background-image:
+      radial-gradient(circle at top left, rgba(34, 211, 238, 0.14), transparent 26%),
+      radial-gradient(circle at top right, rgba(251, 146, 60, 0.16), transparent 24%),
+      linear-gradient(180deg, rgba(248, 252, 255, 1), rgba(240, 247, 251, 1));
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    @apply outline-none;
+  }
+
+  ::selection {
+    background: rgba(14, 165, 233, 0.2);
+  }
+
+  select option,
+  select optgroup {
+    color: hsl(var(--foreground));
+    background: hsl(var(--card));
+  }
+}
+
+@layer utilities {
+  .glass-panel {
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(246, 250, 252, 0.92));
+    backdrop-filter: blur(18px);
+  }
+
+  .timeline-grid {
+    background-image:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.7), rgba(255, 255, 255, 0)),
+      linear-gradient(90deg, rgba(51, 65, 85, 0.05) 1px, transparent 1px),
+      linear-gradient(180deg, rgba(51, 65, 85, 0.04) 1px, transparent 1px);
+  }
+
+  .thin-scrollbar {
+    scrollbar-color: rgba(148, 163, 184, 0.6) transparent;
+    scrollbar-width: thin;
+  }
+
+  .thin-scrollbar::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  .thin-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, 0.45);
+    border-radius: 999px;
+  }
+
+  .thin-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+}
