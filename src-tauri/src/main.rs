@@ -3,4 +3,3 @@
 fn main() {
     experiment_scheduler_lib::run();
 }
-

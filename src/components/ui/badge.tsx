@@ -8,8 +8,8 @@ const badgeVariants = cva(
     variants: {
       variant: {
         default: "border-slate-200 bg-white/90 text-slate-700",
-        syringe: "border-cyan-200 bg-cyan-50 text-cyan-700",
         peristaltic: "border-orange-200 bg-orange-50 text-orange-700",
+        trigger: "border-violet-200 bg-violet-50 text-violet-700",
         success: "border-emerald-200 bg-emerald-50 text-emerald-700",
       },
     },

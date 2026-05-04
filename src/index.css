@@ -28,10 +28,6 @@
     --scheduler-panel-strong: 206 44% 98%;
     --scheduler-lane: 200 54% 97%;
     --scheduler-lane-alt: 36 64% 97%;
-    --scheduler-syringe: 194 74% 45%;
-    --scheduler-syringe-soft: 189 76% 92%;
-    --scheduler-peristaltic: 28 88% 56%;
-    --scheduler-peristaltic-soft: 31 100% 93%;
   }
 
   * {
@@ -127,34 +123,6 @@
     gap: 0.75rem;
   }
 
-  .adaptive-toolbar .toolbar-title-row {
-    gap: 0.75rem;
-  }
-
-  .adaptive-toolbar .toolbar-mark {
-    border-radius: 1rem;
-    padding: 0.625rem;
-  }
-
-  .adaptive-toolbar .toolbar-mark svg {
-    height: 1rem;
-    width: 1rem;
-  }
-
-  .adaptive-toolbar .toolbar-kicker {
-    font-size: 10px;
-    letter-spacing: 0.18em;
-  }
-
-  .adaptive-toolbar .toolbar-title {
-    font-size: 1.35rem;
-    line-height: 1.1;
-  }
-
-  .adaptive-toolbar .toolbar-description {
-    display: none;
-  }
-
   .adaptive-toolbar .toolbar-badges {
     gap: 0.375rem;
   }
@@ -163,28 +131,15 @@
     display: flex;
     gap: 0.75rem;
     overflow-x: auto;
+    overflow-y: hidden;
     padding-bottom: 0.25rem;
     scrollbar-width: thin;
   }
 
   .adaptive-toolbar .toolbar-panel {
-    flex: 0 0 180px;
-    min-width: 180px;
+    flex: 0 0 auto;
     border-radius: 1rem;
     padding: 0.75rem;
   }
 
-  .adaptive-toolbar .toolbar-panel--wide {
-    flex-basis: 320px;
-    min-width: 320px;
-  }
-
-  .adaptive-toolbar .toolbar-panel--narrow {
-    flex-basis: 180px;
-    min-width: 180px;
-  }
-
-  .adaptive-toolbar .toolbar-overview-hint {
-    display: none;
-  }
 }

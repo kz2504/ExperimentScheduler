@@ -1,0 +1,45 @@
+{
+  "kind": "experimentSchedule",
+  "schemaVersion": 1,
+  "savedAt": "2026-05-04T18:19:10.464Z",
+  "rows": [
+    {
+      "id": "row-a",
+      "name": "Pump 32",
+      "deviceType": "peristaltic",
+      "hardwareId": 32
+    },
+    {
+      "id": "row-b",
+      "name": "3.3V OUT 15",
+      "deviceType": "trigger",
+      "hardwareId": 31,
+      "isScheduleStatus": false
+    }
+  ],
+  "blocks": [
+    {
+      "id": "blk-1",
+      "rowId": "row-a",
+      "startMs": 0,
+      "durationMs": 5500,
+      "direction": "forward",
+      "flowRate": 400
+    },
+    {
+      "id": "blk-2",
+      "rowId": "row-b",
+      "startMs": 0,
+      "durationMs": 2500,
+      "direction": "forward",
+      "flowRate": 400,
+      "triggerMode": "waveform",
+      "frequencyHz": 1,
+      "dutyCycle": 50
+    }
+  ],
+  "gridSizeMs": 500,
+  "zoomPxPerMinute": 6000,
+  "experimentDurationMs": 300000,
+  "lastCalibrationFileName": "Test.json"
+}

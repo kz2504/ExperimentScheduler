@@ -1,13 +1,33 @@
 import { Info, Trash2 } from "lucide-react";
+import { HardwareAssignmentSelect } from "@/components/hardware-assignment-select";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { DraftNumberInput } from "@/components/ui/draft-number-input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import { formatDuration, formatTimelineTime, getDeviceTypeLabel } from "@/lib/time";
+import {
+  MIN_BLOCK_DURATION_MS,
+  formatDuration,
+  formatTimelineTime,
+  getDeviceTypeLabel,
+} from "@/lib/time";
+import { getBlockContext } from "@/lib/schedule";
+import {
+  DEFAULT_TRIGGER_DUTY_CYCLE,
+  DEFAULT_TRIGGER_FREQUENCY_HZ,
+  DEFAULT_TRIGGER_MODE,
+  getDutyCycleFromHighTimeMs,
+  getHighTimeMsFromDutyCycle,
+  getPeriodMsFromFrequencyHz,
+  getTriggerModeLabel,
+  getFrequencyHzFromPeriodMs,
+  normalizeDutyCycle,
+  normalizeFrequencyHz,
+} from "@/lib/trigger-output";
 import { useSchedulerStore } from "@/store/scheduler-store";
+import type { TriggerMode } from "@/types/scheduler";
 
 export function InspectorPanel() {
   const rows = useSchedulerStore((state) => state.rows);
@@ -17,11 +37,23 @@ export function InspectorPanel() {
   const deleteBlock = useSchedulerStore((state) => state.deleteBlock);
   const gridSizeMs = useSchedulerStore((state) => state.gridSizeMs);
 
-  const block = blocks.find((item) => item.id === selectedBlockId) ?? null;
-  const row = rows.find((item) => item.id === block?.rowId) ?? null;
-  const compatibleRows = row
-    ? rows.filter((candidate) => candidate.deviceType === row.deviceType)
-    : [];
+  const blockContext = getBlockContext(rows, blocks, selectedBlockId);
+  const block = blockContext?.block ?? null;
+  const row = blockContext?.row ?? null;
+  const compatibleRows = blockContext?.compatibleRows ?? [];
+  const isTriggerBlock = row?.deviceType === "trigger";
+  const triggerMode = block?.triggerMode ?? DEFAULT_TRIGGER_MODE;
+  const triggerFrequencyHz = normalizeFrequencyHz(
+    block?.frequencyHz ?? DEFAULT_TRIGGER_FREQUENCY_HZ,
+  );
+  const triggerDutyCycle = normalizeDutyCycle(
+    block?.dutyCycle ?? DEFAULT_TRIGGER_DUTY_CYCLE,
+  );
+  const triggerPeriodMs = getPeriodMsFromFrequencyHz(triggerFrequencyHz);
+  const triggerHighTimeMs = getHighTimeMsFromDutyCycle(
+    triggerFrequencyHz,
+    triggerDutyCycle,
+  );
 
   return (
     <Card className="glass-panel h-full min-h-0 overflow-hidden border-border/70">
@@ -34,7 +66,7 @@ export function InspectorPanel() {
             <h2 className="mt-1 text-xl font-semibold text-foreground">Block Configuration</h2>
           </div>
           {row ? (
-            <Badge variant={row.deviceType === "syringe" ? "syringe" : "peristaltic"}>
+            <Badge variant={row.deviceType}>
               {row.deviceType}
             </Badge>
           ) : null}
@@ -48,7 +80,7 @@ export function InspectorPanel() {
             <h3 className="mt-4 text-lg font-semibold text-foreground">Select a block</h3>
             <p className="mt-2 max-w-xs text-sm text-muted-foreground">
               Click a command block or right-click it for quick edits. You can fine-tune timing,
-              flow, direction, and compatible row assignment here.
+              channel settings, and compatible row assignment here.
             </p>
           </div>
         ) : (
@@ -66,18 +98,25 @@ export function InspectorPanel() {
               </div>
             </div>
 
+            <HardwareAssignmentSelect
+              id={`inspector-hardware-${row.id}`}
+              row={row}
+              label={row.deviceType === "trigger" ? "Output Pin" : "Pump Index"}
+            />
+
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-1">
               <div className="space-y-2">
                 <Label htmlFor="inspector-start">Block Start (ms)</Label>
-                <Input
+                <DraftNumberInput
                   id="inspector-start"
                   min={0}
+                  minValue={0}
                   step={gridSizeMs}
                   type="number"
                   value={block.startMs}
-                  onChange={(event) =>
+                  onCommit={(value) =>
                     updateBlock(block.id, {
-                      startMs: Number(event.target.value),
+                      startMs: value,
                     })
                   }
                 />
@@ -85,59 +124,159 @@ export function InspectorPanel() {
 
               <div className="space-y-2">
                 <Label htmlFor="inspector-duration">Duration (ms)</Label>
-                <Input
+                <DraftNumberInput
                   id="inspector-duration"
-                  min={gridSizeMs}
+                  min={MIN_BLOCK_DURATION_MS}
+                  minValue={MIN_BLOCK_DURATION_MS}
                   step={gridSizeMs}
                   type="number"
                   value={block.durationMs}
-                  onChange={(event) =>
+                  onCommit={(value) =>
                     updateBlock(block.id, {
-                      durationMs: Number(event.target.value),
+                      durationMs: value,
                     })
                   }
                 />
               </div>
             </div>
 
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-1">
-              <div className="space-y-2">
-                <Label htmlFor="inspector-direction">Direction</Label>
-                <Select
-                  id="inspector-direction"
-                  value={block.direction}
-                  onChange={(event) =>
-                    updateBlock(block.id, {
-                      direction: event.target.value as "forward" | "reverse",
-                    })
-                  }
-                >
-                  <option value="forward">Forward</option>
-                  <option value="reverse">Reverse</option>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="inspector-flow-rate">Flow Rate</Label>
-                <div className="relative">
-                  <Input
-                    id="inspector-flow-rate"
-                    min={0}
-                    step="0.1"
-                    type="number"
-                    value={block.flowRate}
+            {isTriggerBlock ? (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="inspector-trigger-mode">Trigger Block Type</Label>
+                  <Select
+                    id="inspector-trigger-mode"
+                    value={triggerMode}
                     onChange={(event) =>
                       updateBlock(block.id, {
-                        flowRate: Number(event.target.value),
+                        triggerMode: event.target.value as TriggerMode,
                       })
                     }
-                  />
-                  <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs uppercase tracking-[0.2em] text-muted-foreground">
-                    mL/min
-                  </span>
+                  >
+                    <option value="rising">{getTriggerModeLabel("rising")}</option>
+                    <option value="falling">{getTriggerModeLabel("falling")}</option>
+                    <option value="waveform">{getTriggerModeLabel("waveform")}</option>
+                  </Select>
+                </div>
+
+                {triggerMode === "waveform" ? (
+                  <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-1">
+                    <div className="space-y-2">
+                      <Label htmlFor="inspector-trigger-frequency">Frequency (Hz)</Label>
+                      <DraftNumberInput
+                        id="inspector-trigger-frequency"
+                        min="0.000001"
+                        minValue={Number.EPSILON}
+                        step="any"
+                        type="number"
+                        value={triggerFrequencyHz}
+                        onCommit={(value) =>
+                          updateBlock(block.id, {
+                            frequencyHz: normalizeFrequencyHz(value),
+                          })
+                        }
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="inspector-trigger-period">Period (ms)</Label>
+                      <DraftNumberInput
+                        id="inspector-trigger-period"
+                        min="0.0001"
+                        minValue={Number.EPSILON}
+                        step="any"
+                        type="number"
+                        value={triggerPeriodMs}
+                        onCommit={(value) =>
+                          updateBlock(block.id, {
+                            frequencyHz: getFrequencyHzFromPeriodMs(value),
+                          })
+                        }
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="inspector-trigger-duty">Duty Cycle (%)</Label>
+                      <DraftNumberInput
+                        id="inspector-trigger-duty"
+                        min="0"
+                        minValue={0}
+                        max="100"
+                        maxValue={100}
+                        step="1"
+                        type="number"
+                        value={triggerDutyCycle}
+                        onCommit={(value) =>
+                          updateBlock(block.id, {
+                            dutyCycle: normalizeDutyCycle(value),
+                          })
+                        }
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="inspector-trigger-high-time">High Time (ms)</Label>
+                      <DraftNumberInput
+                        id="inspector-trigger-high-time"
+                        min="0"
+                        minValue={0}
+                        step="any"
+                        type="number"
+                        value={triggerHighTimeMs}
+                        onCommit={(value) =>
+                          updateBlock(block.id, {
+                            dutyCycle: getDutyCycleFromHighTimeMs(
+                              triggerFrequencyHz,
+                              value,
+                            ),
+                          })
+                        }
+                      />
+                    </div>
+                  </div>
+                ) : null}
+              </>
+            ) : (
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-1">
+                <div className="space-y-2">
+                  <Label htmlFor="inspector-direction">Direction</Label>
+                  <Select
+                    id="inspector-direction"
+                    value={block.direction}
+                    onChange={(event) =>
+                      updateBlock(block.id, {
+                        direction: event.target.value as "forward" | "reverse",
+                      })
+                    }
+                  >
+                    <option value="forward">Forward</option>
+                    <option value="reverse">Reverse</option>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="inspector-flow-rate">Flow Rate</Label>
+                  <div className="relative">
+                    <DraftNumberInput
+                      id="inspector-flow-rate"
+                      min={0}
+                      minValue={0}
+                      step="10"
+                      type="number"
+                      value={block.flowRate}
+                      onCommit={(value) =>
+                        updateBlock(block.id, {
+                          flowRate: value,
+                        })
+                      }
+                    />
+                    <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs uppercase tracking-[0.2em] text-muted-foreground">
+                      uL/min
+                    </span>
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
 
             <div className="space-y-2">
               <Label htmlFor="inspector-row">Compatible Row Assignment</Label>

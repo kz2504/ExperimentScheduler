@@ -5,6 +5,7 @@ import { TopToolbar } from "@/components/top-toolbar";
 import { ROW_HEADER_WIDTH } from "@/lib/layout";
 import { pxToMs } from "@/lib/time";
 import { useSchedulerStore } from "@/store/scheduler-store";
+import type { Block } from "@/types/scheduler";
 
 interface ContextMenuState {
   blockId: string;
@@ -14,15 +15,18 @@ interface ContextMenuState {
 
 export function AppShell() {
   const selectedBlockId = useSchedulerStore((state) => state.selectedBlockId);
+  const blocks = useSchedulerStore((state) => state.blocks);
   const zoomPxPerMinute = useSchedulerStore((state) => state.zoomPxPerMinute);
-  const totalDurationMs = useSchedulerStore((state) => state.runwayDurationMs);
+  const totalDurationMs = useSchedulerStore((state) => state.experimentDurationMs);
   const experimentState = useSchedulerStore((state) => state.experimentState);
   const deleteBlock = useSchedulerStore((state) => state.deleteBlock);
+  const pasteBlock = useSchedulerStore((state) => state.pasteBlock);
   const syncPlayhead = useSchedulerStore((state) => state.syncPlayhead);
   const setSelectedBlock = useSchedulerStore((state) => state.setSelectedBlock);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
+  const [copiedBlock, setCopiedBlock] = useState<Block | null>(null);
   const [viewportStartMs, setViewportStartMs] = useState(0);
   const [viewportDurationMs, setViewportDurationMs] = useState(20 * 60_000);
 
@@ -78,7 +82,24 @@ export function AppShell() {
         target?.isContentEditable;
 
       if (event.key === "Delete" && selectedBlockId && !isTypingTarget) {
+        event.preventDefault();
         deleteBlock(selectedBlockId);
+      }
+
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "c" && !isTypingTarget) {
+        const block = blocks.find((item) => item.id === selectedBlockId);
+
+        if (block) {
+          event.preventDefault();
+          setCopiedBlock({ ...block });
+        }
+      }
+
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "v" && !isTypingTarget) {
+        if (copiedBlock) {
+          event.preventDefault();
+          pasteBlock(copiedBlock);
+        }
       }
 
       if (event.key === "Escape") {
@@ -88,7 +109,7 @@ export function AppShell() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [deleteBlock, selectedBlockId]);
+  }, [blocks, copiedBlock, deleteBlock, pasteBlock, selectedBlockId]);
 
   return (
     <div className="adaptive-shell relative flex h-full flex-col overflow-hidden px-5 pb-5 pt-4 text-foreground">
@@ -98,7 +119,7 @@ export function AppShell() {
         totalDurationMs={totalDurationMs}
         viewportDurationMs={viewportDurationMs}
         viewportStartMs={viewportStartMs}
-        onJumpToTime={(timeMs) => {
+        onJumpToTime={(timeMs, behavior = "smooth") => {
           const node = scrollRef.current;
           if (!node) {
             return;
@@ -106,7 +127,7 @@ export function AppShell() {
 
           node.scrollTo({
             left: Math.max(0, (timeMs / 60_000) * zoomPxPerMinute),
-            behavior: "smooth",
+            behavior,
           });
         }}
       />

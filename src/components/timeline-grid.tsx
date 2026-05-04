@@ -2,12 +2,15 @@ import { useEffect, useMemo, useState, type RefObject } from "react";
 import { RowSidebar } from "@/components/row-sidebar";
 import { TimelineRow } from "@/components/timeline-row";
 import {
-  MIN_BLOCK_DURATION_MS,
   ROW_HEADER_WIDTH,
   TIME_RULER_HEIGHT,
   TIMELINE_ROW_HEIGHT,
 } from "@/lib/layout";
 import {
+  MAX_ZOOM_PX_PER_MINUTE,
+  MIN_ZOOM_PX_PER_MINUTE,
+  MIN_BLOCK_DURATION_MS,
+  SECOND_MS,
   clampBlockStart,
   formatTimelineTime,
   getLabelEvery,
@@ -15,6 +18,7 @@ import {
   pxToMs,
   snapMs,
 } from "@/lib/time";
+import { getBlockById, getRowsById, getSortedRowBlocks } from "@/lib/schedule";
 import { clamp } from "@/lib/utils";
 import { useSchedulerStore } from "@/store/scheduler-store";
 import type { Block, Row } from "@/types/scheduler";
@@ -25,8 +29,10 @@ interface DragState {
   blockId: string;
   mode: DragMode;
   originX: number;
+  originY: number;
   originBlock: Block;
   originRow: Row;
+  originRowIndex: number;
 }
 
 interface PanState {
@@ -58,15 +64,17 @@ export function TimelineGrid({
   const addBlock = useSchedulerStore((state) => state.addBlock);
   const updateBlock = useSchedulerStore((state) => state.updateBlock);
   const setSelectedBlock = useSchedulerStore((state) => state.setSelectedBlock);
+  const setZoomPxPerMinute = useSchedulerStore((state) => state.setZoomPxPerMinute);
   const [dragState, setDragState] = useState<DragState | null>(null);
   const [panState, setPanState] = useState<PanState | null>(null);
 
   const timelineWidth = Math.max(msToPx(totalDurationMs, zoomPxPerMinute), 1200);
-  const labelEvery = getLabelEvery(gridSizeMs, zoomPxPerMinute);
-  const tickCount = Math.ceil(totalDurationMs / gridSizeMs) + 1;
+  const renderedGridSizeMs = Math.max(gridSizeMs, SECOND_MS);
+  const labelEvery = getLabelEvery(renderedGridSizeMs, zoomPxPerMinute);
+  const tickCount = Math.ceil(totalDurationMs / renderedGridSizeMs) + 1;
 
   const rowsById = useMemo(
-    () => Object.fromEntries(rows.map((row) => [row.id, row])),
+    () => getRowsById(rows),
     [rows],
   );
 
@@ -86,18 +94,29 @@ export function TimelineGrid({
           totalDurationMs,
         );
 
-        const container = scrollRef.current;
         let nextRowId = dragState.originBlock.rowId;
+        const rowDragDeltaY = event.clientY - dragState.originY;
+        const rowSwitchThreshold = TIMELINE_ROW_HEIGHT * 0.72;
+        const rowOffset =
+          Math.abs(rowDragDeltaY) < rowSwitchThreshold
+            ? 0
+            : Math.sign(rowDragDeltaY) *
+              Math.floor(
+                (Math.abs(rowDragDeltaY) - rowSwitchThreshold) / TIMELINE_ROW_HEIGHT + 1,
+              );
+        const nextRowIndex = clamp(
+          dragState.originRowIndex + rowOffset,
+          0,
+          rows.length - 1,
+        );
+        const hoveredRow = rows[nextRowIndex];
 
-        if (container) {
-          const rect = container.getBoundingClientRect();
-          const offsetY = event.clientY - rect.top + container.scrollTop - TIME_RULER_HEIGHT;
-          const rowIndex = Math.floor(offsetY / TIMELINE_ROW_HEIGHT);
-          const hoveredRow = rows[rowIndex];
-
-          if (hoveredRow && hoveredRow.deviceType === originType) {
-            nextRowId = hoveredRow.id;
-          }
+        if (
+          hoveredRow &&
+          hoveredRow.deviceType === originType &&
+          !hoveredRow.isScheduleStatus
+        ) {
+          nextRowId = hoveredRow.id;
         }
 
         updateBlock(dragState.blockId, {
@@ -113,7 +132,7 @@ export function TimelineGrid({
         const nextStartMs = clamp(
           snapMs(dragState.originBlock.startMs + rawDeltaMs, gridSizeMs),
           0,
-          endMs - Math.max(gridSizeMs, MIN_BLOCK_DURATION_MS),
+          endMs - MIN_BLOCK_DURATION_MS,
         );
 
         updateBlock(dragState.blockId, {
@@ -129,7 +148,7 @@ export function TimelineGrid({
           dragState.originBlock.startMs + dragState.originBlock.durationMs + rawDeltaMs,
           gridSizeMs,
         ),
-        dragState.originBlock.startMs + Math.max(gridSizeMs, MIN_BLOCK_DURATION_MS),
+        dragState.originBlock.startMs + MIN_BLOCK_DURATION_MS,
         totalDurationMs,
       );
 
@@ -195,6 +214,46 @@ export function TimelineGrid({
       <div
         ref={scrollRef}
         className={`thin-scrollbar h-full overflow-auto ${panState ? "cursor-grabbing select-none" : ""}`}
+        onWheel={(event) => {
+          const target = event.target as HTMLElement | null;
+
+          if (!target?.closest("[data-main-track='true']") || event.deltaY === 0) {
+            return;
+          }
+
+          const container = scrollRef.current;
+          if (!container) {
+            return;
+          }
+
+          const nextZoomPxPerMinute = clamp(
+            zoomPxPerMinute * Math.exp(-event.deltaY * 0.006),
+            MIN_ZOOM_PX_PER_MINUTE,
+            MAX_ZOOM_PX_PER_MINUTE,
+          );
+
+          event.preventDefault();
+
+          if (nextZoomPxPerMinute === zoomPxPerMinute) {
+            return;
+          }
+
+          const rect = container.getBoundingClientRect();
+          const trackViewportX = Math.max(0, event.clientX - rect.left - ROW_HEADER_WIDTH);
+          const timeAtPointerMs = pxToMs(
+            container.scrollLeft + trackViewportX,
+            zoomPxPerMinute,
+          );
+
+          setZoomPxPerMinute(nextZoomPxPerMinute);
+
+          window.requestAnimationFrame(() => {
+            container.scrollLeft = Math.max(
+              0,
+              msToPx(timeAtPointerMs, nextZoomPxPerMinute) - trackViewportX,
+            );
+          });
+        }}
         onPointerDown={(event) => {
           onDismissContextMenu();
 
@@ -230,12 +289,12 @@ export function TimelineGrid({
           style={{ minWidth: ROW_HEADER_WIDTH + timelineWidth }}
         >
           <div
-            className="pointer-events-none absolute inset-y-0 z-40 w-0"
+            className="pointer-events-none absolute bottom-0 z-30 w-0"
             style={{
               left: ROW_HEADER_WIDTH + clamp(msToPx(playheadMs, zoomPxPerMinute), 0, timelineWidth),
+              top: TIME_RULER_HEIGHT,
             }}
           >
-            <div className="absolute left-0 top-2 h-3 w-3 -translate-x-1/2 rounded-full border-2 border-white bg-rose-500 shadow-[0_6px_18px_rgba(244,63,94,0.35)]" />
             <div className="absolute bottom-0 top-0 left-0 w-px -translate-x-1/2 bg-[linear-gradient(180deg,rgba(244,63,94,0.95),rgba(244,63,94,0.38))] shadow-[0_0_12px_rgba(244,63,94,0.3)]" />
           </div>
 
@@ -246,7 +305,7 @@ export function TimelineGrid({
               height: TIME_RULER_HEIGHT,
             }}
           >
-            <div className="sticky left-0 z-30 flex items-center border-r border-border/70 px-4">
+            <div className="sticky left-0 z-40 flex items-center border-r border-border/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(246,250,252,0.96))] px-4">
               <div>
                 <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-muted-foreground">
                   Device Channels
@@ -257,13 +316,20 @@ export function TimelineGrid({
 
             <div
               className={`relative border-l border-border/40 ${panState ? "cursor-grabbing" : "cursor-grab"}`}
+              data-main-track="true"
               data-pan-track="true"
               style={{
                 width: timelineWidth,
               }}
             >
+              <div
+                className="pointer-events-none absolute top-2 z-20 h-3 w-3 -translate-x-1/2 rounded-full border-2 border-white bg-rose-500 shadow-[0_6px_18px_rgba(244,63,94,0.35)]"
+                style={{
+                  left: clamp(msToPx(playheadMs, zoomPxPerMinute), 0, timelineWidth),
+                }}
+              />
               {Array.from({ length: tickCount }).map((_, index) => {
-                const left = msToPx(index * gridSizeMs, zoomPxPerMinute);
+                const left = msToPx(index * renderedGridSizeMs, zoomPxPerMinute);
                 const isMajor = index % labelEvery === 0;
                 return (
                   <div
@@ -278,7 +344,7 @@ export function TimelineGrid({
                     />
                     {isMajor ? (
                       <div className="absolute left-2 top-2 font-mono text-[11px] text-muted-foreground">
-                        {formatTimelineTime(index * gridSizeMs)}
+                        {formatTimelineTime(index * renderedGridSizeMs)}
                       </div>
                     ) : null}
                   </div>
@@ -288,9 +354,7 @@ export function TimelineGrid({
           </div>
 
           {rows.map((row, rowIndex) => {
-            const rowBlocks = blocks
-              .filter((block) => block.rowId === row.id)
-              .sort((left, right) => left.startMs - right.startMs);
+            const rowBlocks = getSortedRowBlocks(blocks, row.id);
             return (
               <div
                 key={row.id}
@@ -309,7 +373,7 @@ export function TimelineGrid({
                 />
                 <TimelineRow
                   blocks={rowBlocks}
-                  gridSizeMs={gridSizeMs}
+                  gridSizeMs={renderedGridSizeMs}
                   isStriped={rowIndex % 2 === 1}
                   row={row}
                   selectedBlockId={selectedBlockId}
@@ -317,11 +381,12 @@ export function TimelineGrid({
                   totalDurationMs={totalDurationMs}
                   zoomPxPerMinute={zoomPxPerMinute}
                   onBlockPointerDown={(blockId, mode, event) => {
-                    const block = blocks.find((item) => item.id === blockId);
+                    const block = getBlockById(blocks, blockId);
                     const originRow = rowsById[block?.rowId ?? ""];
                     if (!block || !originRow) {
                       return;
                     }
+                    const originRowIndex = rows.findIndex((item) => item.id === originRow.id);
 
                     event.preventDefault();
                     event.stopPropagation();
@@ -330,8 +395,10 @@ export function TimelineGrid({
                       blockId,
                       mode,
                       originX: event.clientX,
+                      originY: event.clientY,
                       originBlock: block,
                       originRow,
+                      originRowIndex: Math.max(0, originRowIndex),
                     });
                   }}
                   onCreateBlock={(timeMs) => {

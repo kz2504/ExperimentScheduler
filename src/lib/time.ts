@@ -3,12 +3,14 @@ import { clamp } from "@/lib/utils";
 
 export const SECOND_MS = 1_000;
 export const MINUTE_MS = 60_000;
-export const RUNWAY_PADDING_MS = 15 * MINUTE_MS;
-export const DEFAULT_RUNWAY_DURATION_MS = 30 * MINUTE_MS;
-export const MIN_AUTO_SCHEDULE_DURATION_MS = DEFAULT_RUNWAY_DURATION_MS;
+export const MIN_BLOCK_DURATION_MS = 500;
+export const EXPERIMENT_PADDING_MS = 15 * MINUTE_MS;
+export const DEFAULT_EXPERIMENT_DURATION_MS = 5 * MINUTE_MS;
+export const MIN_AUTO_SCHEDULE_DURATION_MS = DEFAULT_EXPERIMENT_DURATION_MS;
 export const MIN_MANUAL_SCHEDULE_DURATION_MS = MINUTE_MS;
 
 export const GRID_OPTIONS = [
+  { label: "0.1 sec", value: 100 },
   { label: "0.5 sec", value: 500 },
   { label: "1 sec", value: 1_000 },
   { label: "5 sec", value: 5_000 },
@@ -17,8 +19,16 @@ export const GRID_OPTIONS = [
   { label: "1 min", value: 60_000 },
 ];
 
-export const ZOOM_LEVELS = [240, 480, 900, 1_500, 2_100, 3_000, 4_200] as const;
-export const DEFAULT_ZOOM_PX_PER_MINUTE = 3_000;
+export const MIN_ZOOM_PX_PER_MINUTE = 6_000;
+export const MAX_ZOOM_PX_PER_MINUTE = 24_000;
+export const ZOOM_LEVELS = [
+  MIN_ZOOM_PX_PER_MINUTE,
+  9_000,
+  12_000,
+  18_000,
+  MAX_ZOOM_PX_PER_MINUTE,
+] as const;
+export const DEFAULT_ZOOM_PX_PER_MINUTE = MIN_ZOOM_PX_PER_MINUTE;
 
 function trimTrailingZeros(value: string) {
   return value.replace(/\.0+$/, "").replace(/(\.\d*[1-9])0+$/, "$1");
@@ -101,7 +111,7 @@ export function getScheduleDuration(blocks: Block[], requestedDurationMs?: numbe
 
   if (requestedDurationMs === undefined) {
     return Math.max(
-      requiredDurationMs + RUNWAY_PADDING_MS,
+      requiredDurationMs + EXPERIMENT_PADDING_MS,
       MIN_AUTO_SCHEDULE_DURATION_MS,
     );
   }
@@ -118,18 +128,18 @@ export function getLabelEvery(gridSizeMs: number, zoomPxPerMinute: number) {
   return Math.max(1, Math.ceil(90 / Math.max(gridWidth, 1)));
 }
 
-export function sanitizeDuration(durationMs: number, gridSizeMs: number) {
-  return Math.max(gridSizeMs, snapMs(durationMs, gridSizeMs));
-}
-
 export function clampBlockStart(startMs: number, durationMs: number, totalDurationMs: number) {
   return clamp(startMs, 0, Math.max(0, totalDurationMs - durationMs));
 }
 
 export function getDeviceTypeLabel(deviceType: DeviceType) {
-  return deviceType === "syringe" ? "Syringe pump" : "Peristaltic pump";
+  if (deviceType === "trigger") {
+    return "Trigger output";
+  }
+
+  return "Peristaltic pump";
 }
 
 export function getFlowRateLabel(flowRate: number) {
-  return `${flowRate.toFixed(flowRate % 1 === 0 ? 0 : 1)} mL/min`;
+  return `${flowRate.toFixed(flowRate % 1 === 0 ? 0 : 1)} uL/min`;
 }

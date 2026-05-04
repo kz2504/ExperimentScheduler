@@ -1,3 +1,5 @@
+import { useState } from "react";
+import { getSortedRowBlocks } from "@/lib/schedule";
 import { cn } from "@/lib/utils";
 import { useSchedulerStore } from "@/store/scheduler-store";
 import type { Block, Row } from "@/types/scheduler";
@@ -8,7 +10,7 @@ interface OverviewMinimapProps {
   totalDurationMs: number;
   viewportStartMs: number;
   viewportDurationMs: number;
-  onJumpToTime: (timeMs: number) => void;
+  onJumpToTime: (timeMs: number, behavior?: ScrollBehavior) => void;
 }
 
 export function OverviewMinimap({
@@ -20,21 +22,62 @@ export function OverviewMinimap({
   onJumpToTime,
 }: OverviewMinimapProps) {
   const playheadMs = useSchedulerStore((state) => state.playheadMs);
+  const [isDragging, setIsDragging] = useState(false);
   const rowHeight = 16;
-  const viewportWidthPercent = Math.max(8, (viewportDurationMs / totalDurationMs) * 100);
-  const viewportLeftPercent = Math.min(
+  const viewportWidthPercent = Math.min(
+    100,
+    Math.max(8, (viewportDurationMs / totalDurationMs) * 100),
+  );
+  const viewportLeftPercent = Math.max(0, Math.min(
     100 - viewportWidthPercent,
     (viewportStartMs / totalDurationMs) * 100,
-  );
+  ));
+  const scrollToPointer = (element: HTMLElement, clientX: number) => {
+    const rect = element.getBoundingClientRect();
+    const ratio = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
+    onJumpToTime(totalDurationMs * ratio - viewportDurationMs / 2, "auto");
+  };
 
   return (
     <div className="space-y-2">
-      <button
-        className="relative block w-full overflow-hidden rounded-2xl border border-border/60 bg-slate-50/90 p-2 text-left"
-        onClick={(event) => {
+      <div
+        className={`relative block w-full overflow-hidden rounded-2xl border border-border/60 bg-slate-50/90 p-2 text-left ${
+          isDragging ? "cursor-grabbing" : "cursor-grab"
+        }`}
+        role="slider"
+        aria-label="Schedule overview"
+        aria-valuemax={totalDurationMs}
+        aria-valuemin={0}
+        aria-valuenow={viewportStartMs}
+        tabIndex={0}
+        onPointerDown={(event) => {
+          event.preventDefault();
+          event.currentTarget.setPointerCapture(event.pointerId);
+          setIsDragging(true);
+          scrollToPointer(event.currentTarget, event.clientX);
+        }}
+        onPointerMove={(event) => {
+          if (!isDragging) {
+            return;
+          }
+
+          scrollToPointer(event.currentTarget, event.clientX);
+        }}
+        onPointerUp={(event) => {
+          event.currentTarget.releasePointerCapture(event.pointerId);
+          setIsDragging(false);
+        }}
+        onPointerCancel={(event) => {
+          event.currentTarget.releasePointerCapture(event.pointerId);
+          setIsDragging(false);
+        }}
+        onWheel={(event) => {
+          event.preventDefault();
+
           const rect = event.currentTarget.getBoundingClientRect();
-          const ratio = (event.clientX - rect.left) / rect.width;
-          onJumpToTime(totalDurationMs * ratio - viewportDurationMs / 2);
+          const scrollDeltaPx = event.deltaX !== 0 ? event.deltaX : event.deltaY;
+          const durationPerPixel = totalDurationMs / Math.max(rect.width, 1);
+          onJumpToTime(viewportStartMs + scrollDeltaPx * durationPerPixel * 8, "auto");
         }}
       >
         <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(148,163,184,0.06),transparent_25%,transparent_75%,rgba(148,163,184,0.06))]" />
@@ -42,27 +85,38 @@ export function OverviewMinimap({
           {rows.map((row) => (
             <div
               key={row.id}
-              className="relative mb-1 overflow-hidden rounded-md bg-white/80"
+              className={cn(
+                "relative mb-1 overflow-hidden rounded-md",
+                row.isScheduleStatus
+                  ? "bg-cyan-50/90 shadow-[inset_0_0_0_1px_rgba(14,116,144,0.12)]"
+                  : "bg-white/80",
+              )}
               style={{ height: rowHeight }}
             >
-              {blocks
-                .filter((block) => block.rowId === row.id)
-                .map((block) => {
-                  const left = (block.startMs / totalDurationMs) * 100;
-                  const width = Math.max(1.5, (block.durationMs / totalDurationMs) * 100);
-                  return (
-                    <div
-                      key={block.id}
-                      className={cn(
-                        "absolute top-1/2 h-2.5 -translate-y-1/2 rounded-full",
-                        row.deviceType === "syringe"
-                          ? "bg-cyan-400 shadow-[0_0_20px_rgba(34,211,238,0.18)]"
-                          : "bg-orange-400 shadow-[0_0_20px_rgba(251,146,60,0.18)]",
-                      )}
-                      style={{ left: `${left}%`, width: `${width}%` }}
-                    />
-                  );
-                })}
+              {row.isScheduleStatus ? (
+                <div className="pointer-events-none absolute inset-0 bg-[repeating-linear-gradient(135deg,rgba(14,116,144,0.16)_0,rgba(14,116,144,0.16)_4px,rgba(255,255,255,0)_4px,rgba(255,255,255,0)_8px)]" />
+              ) : null}
+              {getSortedRowBlocks(blocks, row.id).map((block, blockIndex) => {
+                const left = (block.startMs / totalDurationMs) * 100;
+                const width = (block.durationMs / totalDurationMs) * 100;
+                const isAlternateShade = blockIndex % 2 === 1;
+                return (
+                  <div
+                    key={block.id}
+                    className={cn(
+                      "absolute top-1/2 h-2.5 -translate-y-1/2 rounded-full",
+                      row.deviceType === "trigger"
+                        ? isAlternateShade
+                          ? "bg-violet-500 shadow-[0_0_20px_rgba(139,92,246,0.2)]"
+                          : "bg-violet-300 shadow-[0_0_20px_rgba(139,92,246,0.18)]"
+                        : isAlternateShade
+                          ? "bg-orange-500 shadow-[0_0_20px_rgba(251,146,60,0.2)]"
+                          : "bg-orange-300 shadow-[0_0_20px_rgba(251,146,60,0.18)]",
+                    )}
+                    style={{ left: `${left}%`, width: `${width}%` }}
+                  />
+                );
+              })}
             </div>
           ))}
         </div>
@@ -80,7 +134,7 @@ export function OverviewMinimap({
             left: `${Math.min(100, (playheadMs / totalDurationMs) * 100)}%`,
           }}
         />
-      </button>
+      </div>
 
       <div className="flex items-center justify-between px-1 text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
         <span>0:00</span>

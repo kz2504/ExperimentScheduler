@@ -1,12 +1,27 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useRef } from "react";
 import { Trash2 } from "lucide-react";
+import { HardwareAssignmentSelect } from "@/components/hardware-assignment-select";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { DraftNumberInput } from "@/components/ui/draft-number-input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import { getDeviceTypeLabel } from "@/lib/time";
+import { getBlockContext } from "@/lib/schedule";
+import { MIN_BLOCK_DURATION_MS, getDeviceTypeLabel } from "@/lib/time";
+import {
+  DEFAULT_TRIGGER_DUTY_CYCLE,
+  DEFAULT_TRIGGER_FREQUENCY_HZ,
+  DEFAULT_TRIGGER_MODE,
+  getDutyCycleFromHighTimeMs,
+  getFrequencyHzFromPeriodMs,
+  getHighTimeMsFromDutyCycle,
+  getPeriodMsFromFrequencyHz,
+  getTriggerModeLabel,
+  normalizeDutyCycle,
+  normalizeFrequencyHz,
+} from "@/lib/trigger-output";
 import { useSchedulerStore } from "@/store/scheduler-store";
+import type { TriggerMode } from "@/types/scheduler";
 
 interface BlockContextMenuProps {
   blockId: string;
@@ -19,11 +34,13 @@ export function BlockContextMenu({ blockId, x, y, onClose }: BlockContextMenuPro
   const ref = useRef<HTMLDivElement>(null);
   const blocks = useSchedulerStore((state) => state.blocks);
   const rows = useSchedulerStore((state) => state.rows);
+  const gridSizeMs = useSchedulerStore((state) => state.gridSizeMs);
   const updateBlock = useSchedulerStore((state) => state.updateBlock);
   const deleteBlock = useSchedulerStore((state) => state.deleteBlock);
 
-  const block = blocks.find((item) => item.id === blockId);
-  const row = useMemo(() => rows.find((item) => item.id === block?.rowId), [block?.rowId, rows]);
+  const blockContext = getBlockContext(rows, blocks, blockId);
+  const block = blockContext?.block ?? null;
+  const row = blockContext?.row ?? null;
 
   useEffect(() => {
     const handlePointerDown = (event: MouseEvent) => {
@@ -54,7 +71,20 @@ export function BlockContextMenu({ blockId, x, y, onClose }: BlockContextMenuPro
   const menuLeft =
     typeof window === "undefined" ? x : Math.max(12, Math.min(x, window.innerWidth - 310));
   const menuTop =
-    typeof window === "undefined" ? y : Math.max(12, Math.min(y, window.innerHeight - 360));
+    typeof window === "undefined" ? y : Math.max(12, Math.min(y, window.innerHeight - 460));
+  const isTriggerBlock = row.deviceType === "trigger";
+  const triggerMode = block.triggerMode ?? DEFAULT_TRIGGER_MODE;
+  const triggerFrequencyHz = normalizeFrequencyHz(
+    block.frequencyHz ?? DEFAULT_TRIGGER_FREQUENCY_HZ,
+  );
+  const triggerDutyCycle = normalizeDutyCycle(
+    block.dutyCycle ?? DEFAULT_TRIGGER_DUTY_CYCLE,
+  );
+  const triggerPeriodMs = getPeriodMsFromFrequencyHz(triggerFrequencyHz);
+  const triggerHighTimeMs = getHighTimeMsFromDutyCycle(
+    triggerFrequencyHz,
+    triggerDutyCycle,
+  );
 
   return (
     <div
@@ -72,52 +102,163 @@ export function BlockContextMenu({ blockId, x, y, onClose }: BlockContextMenuPro
       </div>
 
       <div className="space-y-3">
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="space-y-2">
-            <Label htmlFor="menu-direction">Direction</Label>
-            <Select
-              id="menu-direction"
-              value={block.direction}
-              onChange={(event) =>
-                updateBlock(block.id, {
-                  direction: event.target.value as "forward" | "reverse",
-                })
-              }
-            >
-              <option value="forward">Forward</option>
-              <option value="reverse">Reverse</option>
-            </Select>
-          </div>
+        <HardwareAssignmentSelect
+          id={`menu-hardware-${row.id}`}
+          row={row}
+          label={row.deviceType === "trigger" ? "Output Pin" : "Pump Index"}
+        />
 
-          <div className="space-y-2">
-            <Label htmlFor="menu-flow-rate">Flow Rate</Label>
-            <Input
-              id="menu-flow-rate"
-              min={0}
-              step="0.1"
-              type="number"
-              value={block.flowRate}
-              onChange={(event) =>
-                updateBlock(block.id, {
-                  flowRate: Number(event.target.value),
-                })
-              }
-            />
+        {isTriggerBlock ? (
+          <>
+            <div className="space-y-2">
+              <Label htmlFor="menu-trigger-mode">Trigger Block Type</Label>
+              <Select
+                id="menu-trigger-mode"
+                value={triggerMode}
+                onChange={(event) =>
+                  updateBlock(block.id, {
+                    triggerMode: event.target.value as TriggerMode,
+                  })
+                }
+              >
+                <option value="rising">{getTriggerModeLabel("rising")}</option>
+                <option value="falling">{getTriggerModeLabel("falling")}</option>
+                <option value="waveform">{getTriggerModeLabel("waveform")}</option>
+              </Select>
+            </div>
+
+            {triggerMode === "waveform" ? (
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="menu-trigger-frequency">Freq (Hz)</Label>
+                  <DraftNumberInput
+                    id="menu-trigger-frequency"
+                    min="0.000001"
+                    minValue={Number.EPSILON}
+                    step="any"
+                    type="number"
+                    value={triggerFrequencyHz}
+                    onCommit={(value) =>
+                      updateBlock(block.id, {
+                        frequencyHz: normalizeFrequencyHz(value),
+                      })
+                    }
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="menu-trigger-duty">Duty (%)</Label>
+                  <DraftNumberInput
+                    id="menu-trigger-duty"
+                    min="0"
+                    minValue={0}
+                    max="100"
+                    maxValue={100}
+                    step="1"
+                    type="number"
+                    value={triggerDutyCycle}
+                    onCommit={(value) =>
+                      updateBlock(block.id, {
+                        dutyCycle: normalizeDutyCycle(value),
+                      })
+                    }
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="menu-trigger-period">Period (ms)</Label>
+                  <DraftNumberInput
+                    id="menu-trigger-period"
+                    min="0.0001"
+                    minValue={Number.EPSILON}
+                    step="any"
+                    type="number"
+                    value={triggerPeriodMs}
+                    onCommit={(value) =>
+                      updateBlock(block.id, {
+                        frequencyHz: getFrequencyHzFromPeriodMs(value),
+                      })
+                    }
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="menu-trigger-high-time">High Time (ms)</Label>
+                  <DraftNumberInput
+                    id="menu-trigger-high-time"
+                    min="0"
+                    minValue={0}
+                    step="any"
+                    type="number"
+                    value={triggerHighTimeMs}
+                    onCommit={(value) =>
+                      updateBlock(block.id, {
+                        dutyCycle: getDutyCycleFromHighTimeMs(
+                          triggerFrequencyHz,
+                          value,
+                        ),
+                      })
+                    }
+                  />
+                </div>
+              </div>
+            ) : null}
+          </>
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="menu-direction">Direction</Label>
+              <Select
+                id="menu-direction"
+                value={block.direction}
+                onChange={(event) =>
+                  updateBlock(block.id, {
+                    direction: event.target.value as "forward" | "reverse",
+                  })
+                }
+              >
+                <option value="forward">Forward</option>
+                <option value="reverse">Reverse</option>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="menu-flow-rate">Flow Rate</Label>
+              <div className="relative">
+                <DraftNumberInput
+                  id="menu-flow-rate"
+                  min={0}
+                  minValue={0}
+                  step="10"
+                  type="number"
+                  value={block.flowRate}
+                  onCommit={(value) =>
+                    updateBlock(block.id, {
+                      flowRate: value,
+                    })
+                  }
+                />
+                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+                  uL/min
+                </span>
+              </div>
+            </div>
           </div>
-        </div>
+        )}
 
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="space-y-2">
             <Label htmlFor="menu-start">Start (ms)</Label>
-            <Input
+            <DraftNumberInput
               id="menu-start"
               min={0}
-              step="1000"
+              minValue={0}
+              step={gridSizeMs}
               type="number"
               value={block.startMs}
-              onChange={(event) =>
+              onCommit={(value) =>
                 updateBlock(block.id, {
-                  startMs: Number(event.target.value),
+                  startMs: value,
                 })
               }
             />
@@ -125,15 +266,16 @@ export function BlockContextMenu({ blockId, x, y, onClose }: BlockContextMenuPro
 
           <div className="space-y-2">
             <Label htmlFor="menu-duration">Duration (ms)</Label>
-            <Input
+            <DraftNumberInput
               id="menu-duration"
-              min={1000}
-              step="1000"
+              min={MIN_BLOCK_DURATION_MS}
+              minValue={MIN_BLOCK_DURATION_MS}
+              step={gridSizeMs}
               type="number"
               value={block.durationMs}
-              onChange={(event) =>
+              onCommit={(value) =>
                 updateBlock(block.id, {
-                  durationMs: Number(event.target.value),
+                  durationMs: value,
                 })
               }
             />

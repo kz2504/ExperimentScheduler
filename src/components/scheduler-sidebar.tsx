@@ -6,7 +6,9 @@ import {
   ListTree,
   SlidersHorizontal,
 } from "lucide-react";
+import { DeviceOverviewPanel } from "@/components/device-overview-panel";
 import { InspectorPanel } from "@/components/inspector-panel";
+import { PumpCalibrationPanel } from "@/components/pump-calibration-panel";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -44,41 +46,11 @@ const SIDEBAR_VIEWS: Array<{
   },
 ];
 
-function SidebarPlaceholder({
-  title,
-  eyebrow,
-  Icon,
-}: {
-  title: string;
-  eyebrow: string;
-  Icon: typeof SlidersHorizontal;
-}) {
-  return (
-    <Card className="glass-panel h-full min-h-0 overflow-hidden border-border/70">
-      <CardContent className="flex h-full min-h-0 flex-col gap-4 p-5">
-        <div>
-          <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-muted-foreground">
-            {eyebrow}
-          </div>
-          <h2 className="mt-1 text-xl font-semibold text-foreground">{title}</h2>
-        </div>
-
-        <div className="flex flex-1 items-center justify-center rounded-3xl border border-dashed border-border/70 bg-slate-50/70 px-6 text-center">
-          <div className="rounded-3xl border border-border/60 bg-white/80 p-5 text-slate-400 shadow-sm">
-            <Icon className="h-10 w-10" />
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
 export function SchedulerSidebar({
   collapsed,
   onToggleCollapsed,
 }: SchedulerSidebarProps) {
-  const [activeView, setActiveView] = useState<SidebarView>("inspector");
-  const currentView = SIDEBAR_VIEWS.find((view) => view.id === activeView) ?? SIDEBAR_VIEWS[0];
+  const [activeView, setActiveView] = useState<SidebarView>("devices");
 
   return (
     <div className="thin-scrollbar min-h-0 overflow-y-auto pr-1">
@@ -131,13 +103,11 @@ export function SchedulerSidebar({
           <div className="min-h-0 pb-1">
             {activeView === "inspector" ? (
               <InspectorPanel />
-            ) : (
-              <SidebarPlaceholder
-                title={currentView.label}
-                eyebrow={currentView.eyebrow}
-                Icon={currentView.Icon}
-              />
-            )}
+            ) : activeView === "devices" ? (
+              <DeviceOverviewPanel />
+            ) : activeView === "calibration" ? (
+              <PumpCalibrationPanel />
+            ) : null}
           </div>
         )}
       </div>

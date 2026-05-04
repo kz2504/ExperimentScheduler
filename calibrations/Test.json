@@ -1,0 +1,36 @@
+{
+  "kind": "pumpCalibrationSet",
+  "schemaVersion": 1,
+  "savedAt": "2026-05-04T18:19:10.462Z",
+  "activeRowId": "row-a",
+  "channelNamesByRowId": {
+    "row-a": "Pump 32"
+  },
+  "calibrationsByRowId": {
+    "row-a": {
+      "vMax": 5,
+      "points": [
+        {
+          "id": "cal-point-1",
+          "measuredFlowRate": null
+        },
+        {
+          "id": "cal-point-2",
+          "measuredFlowRate": null
+        },
+        {
+          "id": "cal-point-3",
+          "measuredFlowRate": null
+        },
+        {
+          "id": "cal-point-4",
+          "measuredFlowRate": null
+        },
+        {
+          "id": "cal-point-5",
+          "measuredFlowRate": null
+        }
+      ]
+    }
+  }
+}

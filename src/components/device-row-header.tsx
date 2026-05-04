@@ -1,5 +1,7 @@
 import { Plus, Trash2 } from "lucide-react";
+import { HardwareAssignmentSelect } from "@/components/hardware-assignment-select";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { getDeviceTypeLabel } from "@/lib/time";
 import { useSchedulerStore } from "@/store/scheduler-store";
@@ -19,21 +21,31 @@ export function DeviceRowHeader({
   const rows = useSchedulerStore((state) => state.rows);
   const updateRow = useSchedulerStore((state) => state.updateRow);
   const removeRow = useSchedulerStore((state) => state.removeRow);
+  const hasHardwareAssignment = row.hardwareId !== null && row.hardwareId !== undefined;
 
   return (
     <div className="flex w-full flex-col justify-between px-4 py-3">
       <div className="space-y-3">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <div className="text-sm font-semibold tracking-wide text-foreground">{row.name}</div>
+            <Input
+              aria-label="Channel name"
+              className="h-8 px-2 text-sm font-semibold tracking-wide"
+              value={row.name}
+              onChange={(event) =>
+                updateRow(row.id, {
+                  name: event.target.value,
+                })
+              }
+            />
             <div className="mt-1 text-xs uppercase tracking-[0.22em] text-muted-foreground">
               {blockCount} command{blockCount === 1 ? "" : "s"}
             </div>
           </div>
           <div
             className={`rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] ${
-              row.deviceType === "syringe"
-                ? "border-cyan-200 bg-cyan-50 text-cyan-700"
+              row.deviceType === "trigger"
+                ? "border-violet-200 bg-violet-50 text-violet-700"
                 : "border-orange-200 bg-orange-50 text-orange-700"
             }`}
           >
@@ -53,14 +65,48 @@ export function DeviceRowHeader({
               })
             }
           >
-            <option value="syringe">{getDeviceTypeLabel("syringe")}</option>
             <option value="peristaltic">{getDeviceTypeLabel("peristaltic")}</option>
+            <option value="trigger">{getDeviceTypeLabel("trigger")}</option>
           </Select>
         </div>
+
+        <HardwareAssignmentSelect
+          id={`row-hardware-${row.id}`}
+          row={row}
+          label={row.deviceType === "trigger" ? "Output Pin" : "Pump Index"}
+        />
+
+        {row.deviceType === "trigger" ? (
+          <label
+            className={`flex items-center gap-2 rounded-lg border border-violet-100 bg-violet-50/70 px-3 py-2 text-xs font-medium text-violet-800 ${
+              hasHardwareAssignment ? "" : "opacity-55"
+            }`}
+            title={hasHardwareAssignment ? undefined : "Select an output pin first"}
+          >
+            <input
+              aria-label="Use as schedule status output"
+              checked={Boolean(row.isScheduleStatus)}
+              className="h-4 w-4 rounded border-violet-300 text-violet-700 accent-violet-600"
+              disabled={!hasHardwareAssignment}
+              type="checkbox"
+              onChange={(event) =>
+                updateRow(row.id, {
+                  isScheduleStatus: event.currentTarget.checked,
+                })
+              }
+            />
+            Schedule status output
+          </label>
+        ) : null}
       </div>
 
       <div className="mt-4 flex gap-2">
-        <Button size="sm" className="flex-1" onClick={onCreateBlock}>
+        <Button
+          disabled={Boolean(row.isScheduleStatus)}
+          size="sm"
+          className="flex-1"
+          onClick={onCreateBlock}
+        >
           <Plus className="h-4 w-4" />
           Add Block
         </Button>
